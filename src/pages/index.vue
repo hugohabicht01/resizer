@@ -1,89 +1,39 @@
 <script setup lang="ts" generic="T extends any, O extends any">
+import type { OrientationSizes } from "~/composables/renderer";
 defineOptions({
   name: "IndexPage",
 });
 
-const canvas = ref<HTMLCanvasElement | null>();
-const image = ref<HTMLImageElement | null>(null);
-const downloadLink = ref<HTMLAnchorElement | null>(null);
+const fileList = ref<File[]>([]);
+
+const wantedHeight = reactive<OrientationSizes>({
+  landscape: 600,
+  portrait: 1350 - 175,
+  square: 1350 - 200,
+});
+const colour = ref("#ffffff");
+const debouncedColour = debouncedRef(colour, 100);
 
 const fileChanged = async (event: Event) => {
   const { files } = event.target as HTMLInputElement;
 
-  const imageFile = files?.[0];
-  if (!imageFile) {
+  if (files && files?.length > 0) {
+    const arr = [];
+    for (let i = 0; i < files.length; i++) {
+      arr.push(files.item(i)!);
+    }
+    fileList.value = arr;
+  }
+};
+
+const genDownloads = () => {
+  if (fileList.value.length === 0) {
     return;
   }
-  image.value = new Image();
-
-  const imageSrc = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject("bad loading result");
-        return;
-      }
-      resolve(reader.result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(imageFile);
-  });
-
-  image.value.src = imageSrc;
-  await new Promise<void>((resolve, reject) => {
-    if (!image.value) return;
-    image.value.onload = () => resolve();
-  });
-  processImage();
-};
-
-const processImage = () => {
-  if (!canvas.value || !image.value) return;
-  const ctx = canvas.value.getContext("2d");
-  if (!ctx) return;
-
-  // Clear the canvas
-  ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
-
-  // Fill the canvas.value with a white background
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvas.value.width, canvas.value.height);
-
-  const { xOffset, yOffset, targetWidth, targetHeight } = calcDimensions(
-    image.value,
-  );
-  // Draw the image centered in the canvas.value
-  ctx.drawImage(image.value, xOffset, yOffset, targetWidth, targetHeight);
-
-  // Create a downloadable file
-  canvas.value.toBlob((blob) => {
-    if (!blob || !downloadLink.value) return;
-    const url = URL.createObjectURL(blob);
-    downloadLink.value.href = url;
-  }, "image/jpeg");
-};
-
-const calcDimensions = (image: HTMLImageElement) => {
-  const aspectRatio = image.width / image.height;
-  let adjustedHeight = 1350 - 175;
-
-  let targetWidth, targetHeight;
-
-  // Determine the target dimensions while preserving aspect ratio
-  if (aspectRatio > 1080 / adjustedHeight) {
-    // Image is wider than the adjusted canvas aspect ratio
-    targetWidth = 1080;
-    targetHeight = 1080 / aspectRatio;
-  } else {
-    // Image is taller than or matches the adjusted canvas aspect ratio
-    targetHeight = adjustedHeight;
-    targetWidth = adjustedHeight * aspectRatio;
-  }
-
-  // Calculate the position to center the image on the canvas.value
-  const xOffset = (1080 - targetWidth) / 2;
-  const yOffset = (1350 - targetHeight) / 2;
-  return { xOffset, yOffset, targetWidth, targetHeight };
+  const downloadEvent = new CustomEvent(genDownloadEvent);
+  document.dispatchEvent(downloadEvent);
+  // put the focus somewhere else, so that pressing enter doesn't call this again
+  document.body.focus();
 };
 </script>
 
@@ -96,18 +46,62 @@ const calcDimensions = (image: HTMLImageElement) => {
       type="file"
       id="fileInput"
       accept="image/jpeg"
+      multiple="true"
       @change="fileChanged"
     />
-    <a ref="downloadLink" download="output.jpeg" class="btn"
-      >Download Processed Image</a
+    <label for="wantedHeightPortrait"
+      >Portrait height: {{ wantedHeight.portrait }}</label
     >
-    <canvas
-      class="p-4 shadow-xl"
-      id="canvas"
-      height="1350"
-      width="1080"
-      ref="canvas"
-    ></canvas>
-    <br />
+    <input
+      type="range"
+      id="wantedHeightPortrait"
+      v-model.number="wantedHeight.portrait"
+      min="100"
+      max="1350"
+      class="m-4 w-[400px]"
+    />
+    <label for="wantedHeightLandscape"
+      >Landscape height: {{ wantedHeight.landscape }}</label
+    >
+    <input
+      type="range"
+      id="wantedHeightLandscape"
+      v-model.number="wantedHeight.landscape"
+      min="100"
+      max="1350"
+      class="m-4 w-[400px]"
+    />
+    <input type="color" v-model="colour" />
+
+    <label for="wantedHeightSquare"
+      >Square height: {{ wantedHeight.square }}</label
+    >
+    <input
+      type="range"
+      id="wantedHeightSquare"
+      v-model.number="wantedHeight.square"
+      min="100"
+      max="1350"
+      class="m-4 w-[400px]"
+    />
+    <button
+      class="btn disabled:cursor-not-allowed"
+      @click="genDownloads"
+      :disabled="fileList.length === 0"
+    >
+      Download
+    </button>
+    <div class="grid grid-cols-2">
+      <template v-for="file in fileList" :id="file.name">
+        <ImageRenderer
+          :background-colour="debouncedColour"
+          :file="file"
+          :canvas-height="1350"
+          :canvas-width="1080"
+          :wanted-height="wantedHeight"
+          :download-name="file.name"
+        />
+      </template>
+    </div>
   </div>
 </template>
