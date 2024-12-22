@@ -1,5 +1,10 @@
 <script setup lang="ts" generic="T extends any, O extends any">
 import type { OrientationSizes } from "~/composables/renderer";
+import {
+  createZipFromObjectUrls,
+  downloadObjectUrl,
+  type ImageLink,
+} from "~/utils/compression";
 defineOptions({
   name: "IndexPage",
 });
@@ -35,6 +40,30 @@ const genDownloads = () => {
   // put the focus somewhere else, so that pressing enter doesn't call this again
   document.body.focus();
 };
+
+const links = ref<ImageLink[]>([]);
+
+const linkChanged = (link: string, filename: string) => {
+  links.value.push({ objectUrl: link, filename });
+};
+
+watch(
+  links,
+  () => {
+    // when all componenents have successfully generated their links
+    if (links.value.length === fileList.value.length) {
+      if (links.value.length === 1) {
+        const { objectUrl, filename } = links.value[0];
+        downloadObjectUrl(objectUrl, filename);
+        return;
+      }
+      createZipFromObjectUrls(links.value).then((zip) =>
+        downloadObjectUrl(zip, "images.zip"),
+      );
+    }
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -100,6 +129,7 @@ const genDownloads = () => {
           :canvas-width="1080"
           :wanted-height="wantedHeight"
           :download-name="file.name"
+          @onLinkChanged="(link) => linkChanged(link, file.name)"
         />
       </template>
     </div>

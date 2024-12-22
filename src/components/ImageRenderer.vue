@@ -129,8 +129,6 @@ const processImage = async () => {
     drawLocation.value.targetWidth,
     drawLocation.value.targetHeight,
   );
-  // const link = await genDownloadLink();
-  // emits("onLinkChanged", link);
 };
 
 const genDownloadLink = async () => {
@@ -154,10 +152,8 @@ const genDownloadLink = async () => {
 useEventListener(document, genDownloadEvent, (evt) => {
   console.log(`Gonna start download for ${props.downloadName}`);
   genDownloadLink().then((link) => {
-    const aTag = document.createElement("a");
-    aTag.href = link;
-    aTag.download = props.downloadName;
-    aTag.click();
+    emits("onLinkChanged", link);
+    console.log("emitted link");
   });
 });
 
